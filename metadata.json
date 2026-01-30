@@ -1,0 +1,8 @@
+{
+  "name": "APICE4 - Centro de Comando da Vida",
+  "description": "Plataforma holística de gestão de vida para profissionais de alta performance, integrando os pilares Saúde, Profissional, Financeiro, Espiritual e Pessoal.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
