@@ -2,13 +2,14 @@
 import React, { useState, useCallback } from 'react';
 import { PILAR_COLORS } from '../constants';
 import { LifePilar, TimeBlock } from '../types';
-import { Plus, Mic, X, Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { Plus, Mic, X, Save, ArrowLeft, Loader2, Trash2, Check } from 'lucide-react';
 import { useLife } from '../context/LifeContext';
 
 const Planner: React.FC = () => {
-  const { activities, addActivity, navigateTo } = useLife();
+  const { activities, addActivity, removeActivity, navigateTo } = useLife();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   
   const today = new Date();
   const currentDayOfWeek = today.getDay();
@@ -22,13 +23,22 @@ const Planner: React.FC = () => {
     return d.getDate();
   };
 
-  const [newBlock, setNewBlock] = useState({
+  const [newBlock, setNewBlock] = useState<{
+    title: string;
+    pilar: LifePilar;
+    day: number | null;
+    hour: number | null;
+    duration: number;
+    impact: 'low' | 'medium' | 'high';
+    quadrant: 'do' | 'schedule' | 'delegate' | 'eliminate';
+  }>({
     title: '',
     pilar: LifePilar.PROFISSIONAL,
     day: today.getDay(),
     hour: 10,
     duration: 1,
-    impact: 'medium' as const
+    impact: 'medium',
+    quadrant: 'do'
   });
 
   const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -41,19 +51,30 @@ const Planner: React.FC = () => {
 
   const saveTask = async () => {
     if (!newBlock.title) return;
-    const task: TimeBlock = {
-      id: Math.random().toString(),
+    const task: Omit<TimeBlock, 'id'> = {
       title: newBlock.title,
       pilar: newBlock.pilar,
       startTime: new Date().toISOString(),
       duration: newBlock.duration * 60,
       impact: newBlock.impact,
       day: newBlock.day,
-      hour: newBlock.hour
+      hour: newBlock.hour,
+      quadrant: newBlock.quadrant
     };
     await addActivity(task);
     setIsModalOpen(false);
-    setNewBlock({ title: '', pilar: LifePilar.PROFISSIONAL, day: today.getDay(), hour: 10, duration: 1, impact: 'medium' });
+    setNewBlock({ title: '', pilar: LifePilar.PROFISSIONAL, day: today.getDay(), hour: 10, duration: 1, impact: 'medium', quadrant: 'do' });
+  };
+
+  const handleDeleteClick = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirmDeleteId === id) {
+      await removeActivity(id);
+      setConfirmDeleteId(null);
+    } else {
+      setConfirmDeleteId(id);
+      setTimeout(() => setConfirmDeleteId(null), 3000);
+    }
   };
 
   const startVoiceCapture = useCallback(() => {
@@ -150,16 +171,30 @@ const Planner: React.FC = () => {
                     {activities.filter(t => t.day === dIdx).map((task, tIdx) => (
                       <div
                         key={tIdx}
-                        className="absolute left-1.5 right-1.5 rounded-2xl p-4 text-[10px] font-bold overflow-hidden shadow-md border z-10"
+                        className="absolute left-1.5 right-1.5 rounded-2xl p-3 text-[10px] font-bold overflow-hidden shadow-md border z-10 group/task"
                         style={{
                           top: `${((task.hour || 6) - 6) * 96 + 6}px`,
                           height: `${((task.duration || 60) / 60) * 96 - 12}px`,
                           backgroundColor: `${(PILAR_COLORS as any)[task.pilar] || '#CBD5E1'}15`,
-                          borderColor: `${(PILAR_COLORS as any)[task.pilar] || '#CBD5E1'}40`,
-                          color: (PILAR_COLORS as any)[task.pilar] || '#475569'
+                          borderColor: confirmDeleteId === task.id ? '#EF4444' : `${(PILAR_COLORS as any)[task.pilar] || '#CBD5E1'}40`,
+                          color: (PILAR_COLORS as any)[task.pilar] || '#475569',
+                          transition: 'all 0.2s ease-in-out'
                         }}
                       >
-                        <div className="text-slate-800 text-sm font-display truncate">{task.title}</div>
+                        <div className="flex justify-between items-start gap-1">
+                          <div className="text-slate-800 text-sm font-display truncate pr-4">{task.title}</div>
+                          <button 
+                            onClick={(e) => handleDeleteClick(e, task.id)}
+                            className={`p-1 rounded transition-all flex items-center justify-center ${
+                              confirmDeleteId === task.id 
+                                ? 'bg-red-500 text-white opacity-100 scale-110 shadow-lg' 
+                                : 'opacity-0 group-hover/task:opacity-100 bg-white/50 text-slate-400 hover:text-red-500'
+                            }`}
+                            title={confirmDeleteId === task.id ? "Confirmar exclusão" : "Excluir"}
+                          >
+                            {confirmDeleteId === task.id ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -199,6 +234,21 @@ const Planner: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prioridade (Matriz Eisenhower)</label>
+                <select 
+                  value={newBlock.quadrant} 
+                  onChange={(e) => setNewBlock({...newBlock, quadrant: e.target.value as any})} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-4 font-bold text-slate-700"
+                >
+                  <option value="do">Faça Agora (Urgente & Importante)</option>
+                  <option value="schedule">Agende (Não Urgente & Importante)</option>
+                  <option value="delegate">Delegue (Urgente & Não Importante)</option>
+                  <option value="eliminate">Elimine (Não Urgente & Não Importante)</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pilar</label>

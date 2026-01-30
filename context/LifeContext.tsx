@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { LifePilar, TimeBlock, UserProfile, DiagnosisResult } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -21,7 +21,8 @@ interface LifeState {
 interface LifeContextType extends LifeState {
   setUser: (user: any) => void;
   updateDiagnosis: (data: DiagnosisResult, rawAnswers?: any[]) => Promise<void>;
-  addActivity: (activity: TimeBlock) => Promise<void>;
+  addActivity: (activity: Omit<TimeBlock, 'id'>) => Promise<void>;
+  removeActivity: (id: string) => Promise<void>;
   toggleSync: (provider: 'google' | 'outlook') => void;
   scheduleSession: (session: any) => void;
   navigateTo: (tab: string) => void;
@@ -29,6 +30,19 @@ interface LifeContextType extends LifeState {
 }
 
 const LifeContext = createContext<LifeContextType | undefined>(undefined);
+
+// Helper para converter dados do Supabase (snake_case) para App (camelCase)
+const mapFromDB = (data: any): TimeBlock => ({
+  id: String(data.id),
+  title: data.title,
+  pilar: data.pilar as LifePilar,
+  startTime: data.start_time,
+  duration: data.duration,
+  impact: data.impact,
+  day: data.day !== undefined ? data.day : null,
+  hour: data.hour !== undefined ? data.hour : null,
+  quadrant: data.quadrant || 'do'
+});
 
 export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<LifeState>({
@@ -96,19 +110,20 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...prev,
           scores: diagnosis.pilar_scores,
           weeklyFocus: diagnosis.weekly_focus,
-          med_actions: diagnosis.med_actions,
+          medActions: diagnosis.med_actions || [],
           impactAnalysis: diagnosis.impact_analysis,
           isFirstTime: false
         }));
       }
 
-      const { data: acts } = await supabase
+      const { data: acts, error: actsError } = await supabase
         .from('planner_blocks')
         .select('*')
         .eq('user_id', userId);
       
-      if (acts) {
-        setState(prev => ({ ...prev, activities: acts }));
+      if (!actsError && acts) {
+        const mappedActivities = acts.map(mapFromDB);
+        setState(prev => ({ ...prev, activities: mappedActivities }));
       }
     } catch (err) {
       console.error("Erro ao carregar dados do usuário:", err);
@@ -161,9 +176,10 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  const addActivity = async (activity: TimeBlock) => {
+  const addActivity = async (activity: Omit<TimeBlock, 'id'>) => {
     if (!state.user) return;
-    const { data, error } = await supabase.from('planner_blocks').insert({
+    
+    const dbPayload = {
       user_id: state.user.id,
       title: activity.title,
       pilar: activity.pilar,
@@ -171,17 +187,52 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       duration: activity.duration,
       impact: activity.impact,
       day: activity.day,
-      hour: activity.hour
-    }).select().single();
+      hour: activity.hour,
+      quadrant: activity.quadrant || 'do'
+    };
+
+    const { data, error } = await supabase
+      .from('planner_blocks')
+      .insert(dbPayload)
+      .select()
+      .single();
 
     if (!error && data) {
-      setState(prev => ({ ...prev, activities: [...prev.activities, data] }));
+      const newActivity = mapFromDB(data);
+      setState(prev => ({ ...prev, activities: [...prev.activities, newActivity] }));
+    } else if (error) {
+      console.error("Erro detalhado Supabase:", error);
+      alert("Falha ao salvar. Certifique-se de que as colunas 'day' e 'hour' permitem valores nulos no banco de dados.");
+    }
+  };
+
+  const removeActivity = async (id: string) => {
+    if (!state.user) return;
+    try {
+      const { error } = await supabase.from('planner_blocks').delete().eq('id', id);
+      if (error) throw error;
+      setState(prev => ({ ...prev, activities: prev.activities.filter(a => a.id !== id) }));
+    } catch (err) {
+      console.error("Erro ao remover atividade:", err);
+      alert("Não foi possível excluir a tarefa. Verifique sua conexão.");
     }
   };
 
   const logout = async () => {
     await supabase.auth.signOut();
-    setState(prev => ({ ...prev, user: null, activeTab: 'login' }));
+    setState(prev => ({ 
+      ...prev, 
+      user: null, 
+      activeTab: 'login', 
+      scores: {
+        [LifePilar.SAUDE]: 0,
+        [LifePilar.PROFISSIONAL]: 0,
+        [LifePilar.FINANCEIRO]: 0,
+        [LifePilar.ESPIRITUAL]: 0,
+        [LifePilar.PESSOAL]: 0,
+      },
+      activities: []
+    }));
   };
 
   const toggleSync = (provider: 'google' | 'outlook') => {
@@ -200,7 +251,8 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...state, 
       setUser,
       updateDiagnosis, 
-      addActivity, 
+      addActivity,
+      removeActivity,
       toggleSync, 
       scheduleSession, 
       navigateTo,

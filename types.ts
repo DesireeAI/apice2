@@ -29,8 +29,9 @@ export interface TimeBlock {
   startTime: string; 
   duration: number; 
   impact: 'low' | 'medium' | 'high';
-  day?: number;
-  hour?: number;
+  day?: number | null;
+  hour?: number | null;
+  quadrant?: 'do' | 'schedule' | 'delegate' | 'eliminate';
 }
 
 export interface MatrixItem {
