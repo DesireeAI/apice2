@@ -20,7 +20,7 @@ interface LifeState {
 
 interface LifeContextType extends LifeState {
   setUser: (user: any) => void;
-  updateDiagnosis: (data: DiagnosisResult) => Promise<void>;
+  updateDiagnosis: (data: DiagnosisResult, rawAnswers?: any[]) => Promise<void>;
   addActivity: (activity: TimeBlock) => Promise<void>;
   toggleSync: (provider: 'google' | 'outlook') => void;
   scheduleSession: (session: any) => void;
@@ -54,23 +54,27 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        // Correção: Extraindo full_name do metadata na inicialização
-        const userPayload = { 
-          id: session.user.id, 
-          email: session.user.email!,
-          full_name: session.user.user_metadata?.full_name 
-        };
-        
-        setState(prev => ({ 
-          ...prev, 
-          user: userPayload, 
-          activeTab: 'dashboard', 
-          loading: false 
-        }));
-        loadUserData(session.user.id);
-      } else {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userPayload = { 
+            id: session.user.id, 
+            email: session.user.email!,
+            full_name: session.user.user_metadata?.full_name 
+          };
+          
+          setState(prev => ({ 
+            ...prev, 
+            user: userPayload, 
+            activeTab: 'dashboard', 
+            loading: false 
+          }));
+          loadUserData(session.user.id);
+        } else {
+          setState(prev => ({ ...prev, loading: false }));
+        }
+      } catch (err) {
+        console.error("Erro na inicialização:", err);
         setState(prev => ({ ...prev, loading: false }));
       }
     };
@@ -78,34 +82,36 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loadUserData = async (userId: string) => {
-    // Carregar Diagnóstico
-    const { data: diagnosis } = await supabase
-      .from('diagnoses')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    try {
+      const { data: diagnosis } = await supabase
+        .from('diagnoses')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (diagnosis) {
-      setState(prev => ({
-        ...prev,
-        scores: diagnosis.pilar_scores,
-        weeklyFocus: diagnosis.weekly_focus,
-        med_actions: diagnosis.med_actions,
-        impact_analysis: diagnosis.impact_analysis,
-        isFirstTime: false
-      }));
-    }
+      if (diagnosis) {
+        setState(prev => ({
+          ...prev,
+          scores: diagnosis.pilar_scores,
+          weeklyFocus: diagnosis.weekly_focus,
+          med_actions: diagnosis.med_actions,
+          impactAnalysis: diagnosis.impact_analysis,
+          isFirstTime: false
+        }));
+      }
 
-    // Carregar Atividades
-    const { data: acts } = await supabase
-      .from('planner_blocks')
-      .select('*')
-      .eq('user_id', userId);
-    
-    if (acts) {
-      setState(prev => ({ ...prev, activities: acts }));
+      const { data: acts } = await supabase
+        .from('planner_blocks')
+        .select('*')
+        .eq('user_id', userId);
+      
+      if (acts) {
+        setState(prev => ({ ...prev, activities: acts }));
+      }
+    } catch (err) {
+      console.error("Erro ao carregar dados do usuário:", err);
     }
   };
 
@@ -120,27 +126,39 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) loadUserData(user.id);
   };
 
-  const updateDiagnosis = async (data: DiagnosisResult) => {
+  const updateDiagnosis = async (data: DiagnosisResult, rawAnswers?: any[]) => {
     if (!state.user) return;
     
-    const { error } = await supabase.from('diagnoses').insert({
+    const { data: diagRecord, error: diagError } = await supabase.from('diagnoses').insert({
       user_id: state.user.id,
       pilar_scores: data.pilarScores,
       weekly_focus: data.weeklyFocus,
       med_actions: data.medActions,
       impact_analysis: data.impactAnalysis
-    });
+    }).select().single();
 
-    if (!error) {
-      setState(prev => ({
-        ...prev,
-        scores: data.pilarScores,
-        weeklyFocus: data.weeklyFocus,
-        medActions: data.medActions,
-        impactAnalysis: data.impactAnalysis,
-        isFirstTime: false
+    if (diagError) throw diagError;
+
+    if (rawAnswers && diagRecord) {
+      const answersPayload = rawAnswers.map(ans => ({
+        user_id: state.user!.id,
+        diagnosis_id: diagRecord.id,
+        question_text: ans.pergunta,
+        pilar: ans.pilar,
+        answer_text: ans.resposta
       }));
+
+      await supabase.from('diagnosis_answers').insert(answersPayload);
     }
+
+    setState(prev => ({
+      ...prev,
+      scores: data.pilarScores,
+      weeklyFocus: data.weeklyFocus,
+      medActions: data.medActions,
+      impactAnalysis: data.impactAnalysis,
+      isFirstTime: false
+    }));
   };
 
   const addActivity = async (activity: TimeBlock) => {

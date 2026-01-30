@@ -11,17 +11,15 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const { user } = useLife();
 
-  // Função para obter o nome amigável para exibição
   const getDisplayName = () => {
     if (user?.full_name) return user.full_name;
     if (user?.email) return user.email.split('@')[0];
     return 'Usuário';
   };
 
-  // Função para obter a inicial do avatar
   const getInitial = () => {
     const name = getDisplayName();
-    return name[0].toUpperCase();
+    return (name[0] || '?').toUpperCase();
   };
 
   return (

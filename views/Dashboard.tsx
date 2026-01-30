@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import { PILAR_COLORS, PILAR_ICONS } from '../constants';
 import { LifePilar } from '../types';
@@ -8,6 +8,11 @@ import { useLife } from '../context/LifeContext';
 
 const Dashboard: React.FC = () => {
   const { scores, impactAnalysis, medActions, scheduledSessions, isFirstTime, navigateTo } = useLife();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const radarData = Object.entries(scores).map(([pilar, score]) => ({
     subject: pilar,
@@ -146,13 +151,15 @@ const Dashboard: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
             <h3 className="text-lg font-bold font-display mb-6 text-slate-900">Harmonia Geral</h3>
             <div className="h-[240px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                  <PolarGrid stroke="#E2E8F0" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
-                  <Radar name="Vida" dataKey="A" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.2} />
-                </RadarChart>
-              </ResponsiveContainer>
+              {mounted && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                    <PolarGrid stroke="#E2E8F0" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                    <Radar name="Vida" dataKey="A" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 

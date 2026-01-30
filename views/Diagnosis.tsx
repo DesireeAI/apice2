@@ -70,11 +70,19 @@ const Diagnosis: React.FC = () => {
         resposta: answers[idx]
       }));
       
-      const data = await generateLifeDiagnosis(formattedData);
-      await updateDiagnosis(data);
-      navigateTo('results');
+      const aiResponse = await generateLifeDiagnosis(formattedData);
+      
+      // Salva no banco e atualiza estado ANTES de navegar
+      await updateDiagnosis(aiResponse, formattedData);
+      
+      // Pequeno delay para garantir que o estado do React reflita as mudanças no dashboard/results
+      setTimeout(() => {
+        navigateTo('results');
+      }, 100);
+
     } catch (error) {
-      alert("Erro ao processar diagnóstico. Verifique sua conexão.");
+      console.error(error);
+      alert("Houve um problema ao processar seu diagnóstico. Por favor, tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -82,12 +90,15 @@ const Diagnosis: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-6">
+      <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in duration-500">
         <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center relative shadow-inner">
           <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
           <div className="absolute inset-0 border-4 border-blue-100 rounded-full border-t-blue-600 animate-spin-slow" />
         </div>
-        <h2 className="text-3xl font-bold font-display text-slate-900">Analisando sua Performance...</h2>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-bold font-display text-slate-900">Mapeando sua Performance...</h2>
+          <p className="text-slate-500 font-medium max-w-xs mx-auto">Nossa IA está cruzando seus dados para gerar o Raio-X ideal.</p>
+        </div>
       </div>
     );
   }
@@ -127,23 +138,30 @@ const Diagnosis: React.FC = () => {
               onClick={() => handleOptionSelect(option)}
               className={`w-full p-6 text-left border-2 rounded-2xl transition-all flex items-center justify-between group ${
                 answers[currentStep] === option 
-                ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-md' 
                 : 'border-slate-100 hover:border-blue-200 bg-white text-slate-600'
               }`}
             >
-              <span className="font-semibold">{option}</span>
-              <ChevronRight className="w-5 h-5 opacity-0 group-hover:opacity-100" />
+              <span className="font-semibold text-sm md:text-base">{option}</span>
+              <ChevronRight className={`w-5 h-5 transition-all ${answers[currentStep] === option ? 'opacity-100 text-blue-600' : 'opacity-0 group-hover:opacity-100'}`} />
             </button>
           ))}
         </div>
 
         <div className="flex justify-between items-center pt-8">
-          <button onClick={handleBack} disabled={currentStep === 0} className="flex items-center gap-2 py-3 px-6 bg-white border border-slate-200 rounded-xl text-slate-400 font-bold uppercase text-[10px] disabled:opacity-0 transition-all">
+          <button 
+            onClick={handleBack} 
+            disabled={currentStep === 0} 
+            className="flex items-center gap-2 py-3 px-6 bg-white border border-slate-200 rounded-xl text-slate-400 font-bold uppercase text-[10px] disabled:opacity-0 transition-all hover:bg-slate-50"
+          >
             <ChevronLeft className="w-4 h-4" /> Anterior
           </button>
           {currentStep === questionBank.length - 1 && answers[currentStep] && (
-            <button onClick={submitDiagnosis} className="py-4 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold transition-all shadow-lg uppercase text-xs tracking-widest active:scale-95">
-              Gerar Diagnóstico <ArrowRight className="w-4 h-4 ml-2" />
+            <button 
+              onClick={submitDiagnosis} 
+              className="py-4 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold transition-all shadow-xl shadow-blue-100 uppercase text-xs tracking-widest active:scale-95 flex items-center gap-3"
+            >
+              Gerar Raio-X de Vida <Sparkles className="w-4 h-4" />
             </button>
           )}
         </div>
