@@ -7,44 +7,34 @@ export enum LifePilar {
   PESSOAL = 'Pessoal'
 }
 
-export interface PilarMetrics {
-  score: number; // 0-100
-  label: string;
-  trend: 'up' | 'down' | 'stable';
-  color: string;
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
 }
 
 export interface DiagnosisResult {
+  id?: string;
   weeklyFocus: string;
   pilarScores: Record<LifePilar, number>;
   medActions: string[];
-  suggestedSchedule: TimeBlock[];
+  impactAnalysis: string;
+  created_at?: string;
 }
 
 export interface TimeBlock {
   id: string;
   title: string;
   pilar: LifePilar;
-  startTime: string; // ISO or simple format
-  duration: number; // in minutes
+  startTime: string; 
+  duration: number; 
   impact: 'low' | 'medium' | 'high';
+  day?: number;
+  hour?: number;
 }
 
-export interface Mentor {
+export interface MatrixItem {
   id: string;
-  name: string;
-  specialty: LifePilar[];
-  bio: string;
-  rating: number;
-  avatar: string;
-}
-
-export interface MastermindGroup {
-  id: string;
-  title: string;
-  facilitator: string;
-  pilar: LifePilar;
-  nextSession: string;
-  spots: number;
-  description: string;
+  task: string;
+  quadrant: 'do' | 'schedule' | 'delegate' | 'eliminate';
 }

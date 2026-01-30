@@ -4,7 +4,7 @@ import { Shield, CreditCard, RefreshCw, Key, LogOut, Download, Trash2, User, Sli
 import { useLife } from '../context/LifeContext';
 
 const Settings: React.FC = () => {
-  const { isSynced, toggleSync, subscriptionStatus } = useLife();
+  const { isSynced, toggleSync, subscriptionStatus, user } = useLife();
   const [pixStatus, setPixStatus] = useState<'idle' | 'generating' | 'success'>('idle');
 
   const generatePix = () => {
@@ -29,12 +29,22 @@ const Settings: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Nome de Comando</label>
-              <input type="text" defaultValue="Ricardo Santos" className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/50 focus:outline-none text-slate-800 transition-all font-medium" />
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Nome de Comando</label>
+              <input 
+                type="text" 
+                readOnly
+                value={user?.full_name || user?.email?.split('@')[0] || ''} 
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 text-slate-800 font-medium cursor-default outline-none" 
+              />
             </div>
             <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Email de Acesso</label>
-              <input type="email" defaultValue="ricardo.apice@exec.com" className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/50 focus:outline-none text-slate-800 transition-all font-medium" />
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email de Acesso</label>
+              <input 
+                type="email" 
+                readOnly
+                value={user?.email || ''} 
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 text-slate-800 font-medium cursor-default outline-none" 
+              />
             </div>
           </div>
         </section>

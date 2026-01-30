@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { NAV_ITEMS } from '../constants';
+import { useLife } from '../context/LifeContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -8,6 +9,21 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+  const { user } = useLife();
+
+  // Função para obter o nome amigável para exibição
+  const getDisplayName = () => {
+    if (user?.full_name) return user.full_name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'Usuário';
+  };
+
+  // Função para obter a inicial do avatar
+  const getInitial = () => {
+    const name = getDisplayName();
+    return name[0].toUpperCase();
+  };
+
   return (
     <>
       {/* Desktop/Tablet Sidebar */}
@@ -41,13 +57,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
 
         <div className="p-4 border-t border-slate-100">
           <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-            <img 
-              src="https://picsum.photos/seed/user/100" 
-              alt="User" 
-              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-            />
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+              {getInitial()}
+            </div>
             <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-bold truncate text-slate-800">Ricardo S.</span>
+              <span className="text-sm font-bold truncate text-slate-800" title={getDisplayName()}>
+                {getDisplayName()}
+              </span>
               <span className="text-[9px] uppercase font-bold text-blue-600 tracking-wider">Membro VIP</span>
             </div>
           </div>

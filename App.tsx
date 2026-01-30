@@ -3,24 +3,48 @@ import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './views/Dashboard';
 import Diagnosis from './views/Diagnosis';
+import DiagnosisResult from './views/DiagnosisResult';
 import Planner from './views/Planner';
 import Masterminds from './views/Masterminds';
 import IndividualConsultancy from './views/IndividualConsultancy';
 import Settings from './views/Settings';
-import { Search, Bell, User, X } from 'lucide-react';
+import Guide from './views/Guide';
+import Eisenhower from './views/Eisenhower';
+import Login from './views/Login';
+import SignUp from './views/SignUp';
+import ForgotPassword from './views/ForgotPassword';
+import { Search, Bell, User, X, LogOut, Loader2 } from 'lucide-react';
 import { LifeProvider, useLife } from './context/LifeContext';
 
 const AppContent: React.FC = () => {
-  const { activeTab, navigateTo } = useLife();
+  const { activeTab, navigateTo, user, logout, loading } = useLife();
   const [searchQuery, setSearchQuery] = useState('');
+
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  // Controle de Auth
+  if (!user) {
+    if (activeTab === 'signup') return <SignUp />;
+    if (activeTab === 'forgot-password') return <ForgotPassword />;
+    return <Login />;
+  }
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
       case 'diagnosis': return <Diagnosis />;
+      case 'results': return <DiagnosisResult />;
       case 'planner': return <Planner />;
       case 'masterminds': return <Masterminds />;
       case 'individual': return <IndividualConsultancy />;
+      case 'guide': return <Guide />;
+      case 'eisenhower': return <Eisenhower />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }
@@ -31,26 +55,16 @@ const AppContent: React.FC = () => {
       <Sidebar activeTab={activeTab} setActiveTab={navigateTo} />
       
       <main className="flex-1 h-screen overflow-y-auto relative flex flex-col pb-20 lg:pb-0 bg-[#F8FAFC]">
-        {/* Header Superior Light */}
         <div className="sticky top-0 z-[40] flex items-center justify-between px-6 lg:px-10 py-4 bg-white/80 backdrop-blur-xl border-b border-slate-200">
           <div className="relative w-full max-w-xs md:max-w-md group hidden sm:block">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar pilar, meta ou mentor..." 
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-2.5 pl-12 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/30 transition-all placeholder:text-slate-400 text-slate-800"
+              placeholder="Buscar meta, pilar ou mentor..." 
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-2.5 pl-12 pr-10 text-sm focus:border-blue-500/30 transition-all outline-none"
             />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors"
-                title="Limpar pesquisa"
-              >
-                <X className="w-4 h-4 text-slate-500" />
-              </button>
-            )}
           </div>
 
           <div className="lg:hidden block">
@@ -58,35 +72,25 @@ const AppContent: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3 lg:gap-5">
-            <div className="hidden lg:flex flex-col items-end">
-              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">IA Assistant</span>
-              <span className="text-[10px] text-green-600 font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full" /> ONLINE
-              </span>
-            </div>
-            
-            <button 
-              className="p-2.5 bg-slate-50 border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all relative group shadow-sm"
-              onClick={() => alert("Notificações em breve")}
-            >
+            <button className="p-2.5 bg-slate-50 border border-slate-200 text-slate-500 hover:text-blue-600 rounded-xl transition-all relative">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-white shadow-sm" />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />
             </button>
             
             <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
             
-            <div 
-              className="flex items-center gap-3 pl-2 group cursor-pointer" 
-              onClick={() => navigateTo('settings')}
-              role="button"
-            >
+            <div className="flex items-center gap-3 pl-2 group">
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-slate-800 uppercase tracking-tighter">Ricardo Santos</p>
+                <p className="text-xs font-bold text-slate-800 uppercase tracking-tighter">{user.full_name || user.email.split('@')[0]}</p>
                 <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Master VIP</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 group-hover:bg-blue-700 transition-all">
-                <User className="w-5 h-5" />
-              </div>
+              <button 
+                onClick={logout}
+                title="Sair"
+                className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>

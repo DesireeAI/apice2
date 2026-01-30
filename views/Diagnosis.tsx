@@ -11,7 +11,6 @@ const Diagnosis: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [localResult, setLocalResult] = useState<any>(null);
 
   const questionBank = [
     // SAÚDE
@@ -53,7 +52,6 @@ const Diagnosis: React.FC = () => {
   const handleOptionSelect = (option: string) => {
     const updatedAnswers = { ...answers, [currentStep]: option };
     setAnswers(updatedAnswers);
-    
     if (currentStep < questionBank.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -66,7 +64,6 @@ const Diagnosis: React.FC = () => {
   const submitDiagnosis = async () => {
     setLoading(true);
     try {
-      // Transform answers to a format the IA can easily interpret
       const formattedData = questionBank.map((q, idx) => ({
         pergunta: q.text,
         pilar: q.pilar,
@@ -74,10 +71,10 @@ const Diagnosis: React.FC = () => {
       }));
       
       const data = await generateLifeDiagnosis(formattedData);
-      setLocalResult(data);
-      updateDiagnosis(data);
+      await updateDiagnosis(data);
+      navigateTo('results');
     } catch (error) {
-      alert("Erro ao processar. Tente novamente.");
+      alert("Erro ao processar diagnóstico. Verifique sua conexão.");
     } finally {
       setLoading(false);
     }
@@ -86,89 +83,11 @@ const Diagnosis: React.FC = () => {
   if (loading) {
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-6">
-        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center shadow-inner relative">
+        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center relative shadow-inner">
           <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
           <div className="absolute inset-0 border-4 border-blue-100 rounded-full border-t-blue-600 animate-spin-slow" />
         </div>
-        <div>
-          <h2 className="text-3xl font-bold font-display text-slate-900">Análise de Redes Neurais...</h2>
-          <p className="text-slate-500 mt-2">Correlacionando suas 25 variáveis para o plano ideal.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (localResult) {
-    return (
-      <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-700 pb-20">
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 text-green-700 rounded-full text-[10px] font-bold uppercase tracking-widest border border-green-100 shadow-sm">
-            <Sparkles className="w-3 h-3" /> Mapeamento Concluído
-          </div>
-          <h2 className="text-4xl font-bold font-display text-slate-900">Seu Mapa de Evolução</h2>
-          <p className="text-slate-500">Baseado nas suas respostas, aqui está sua rota para o próximo nível.</p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-[3rem] p-10 space-y-10 shadow-xl relative overflow-hidden">
-          <div className="flex justify-between items-start border-b border-slate-100 pb-8">
-            <div className="max-w-2xl">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-2">Foco da Temporada</h3>
-              <p className="text-2xl font-display leading-relaxed italic text-slate-800">"{localResult.weeklyFocus}"</p>
-            </div>
-            <button onClick={() => { setLocalResult(null); setCurrentStep(0); setAnswers({}); }} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">
-              <Edit3 className="w-4 h-4" /> Refazer Teste
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div className="space-y-6">
-              <h4 className="font-bold font-display text-xl flex items-center gap-3 text-slate-900">
-                <Brain className="w-6 h-6 text-blue-600" /> Ações Dose Mínima (MED)
-              </h4>
-              <ul className="space-y-4">
-                {localResult.medActions.map((action: string, idx: number) => (
-                  <li key={idx} className="flex gap-4 text-sm text-slate-600 items-start p-5 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
-                    <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    {action}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 shadow-inner">
-              <h4 className="font-bold font-display text-xl mb-8 text-slate-900">Performance por Pilar</h4>
-              <div className="space-y-6">
-                {Object.entries(localResult.pilarScores).map(([pilar, score]) => (
-                  <div key={pilar}>
-                    <div className="flex justify-between text-[11px] uppercase font-bold tracking-widest text-slate-400 mb-2">
-                      <span>{pilar}</span>
-                      <span className="text-slate-900">{score as number}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${score}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-8 bg-blue-50 border border-blue-100 rounded-[2rem] shadow-sm">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-4 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> Análise Integrada
-            </h4>
-            <p className="text-sm text-slate-600 leading-relaxed italic">
-              {localResult.impactAnalysis}
-            </p>
-          </div>
-
-          <button 
-            onClick={() => navigateTo('planner')}
-            className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-200 transition-all text-lg flex items-center justify-center gap-3 active:scale-95"
-          >
-            Visualizar no Planner <ArrowRight className="w-6 h-6" />
-          </button>
-        </div>
+        <h2 className="text-3xl font-bold font-display text-slate-900">Analisando sua Performance...</h2>
       </div>
     );
   }
@@ -185,12 +104,12 @@ const Diagnosis: React.FC = () => {
           </span>
           <span className="text-blue-600">{currentStep + 1} de {questionBank.length}</span>
         </div>
-        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner flex">
+        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
           {questionBank.map((_, idx) => (
             <div 
               key={idx} 
               className={`h-full transition-all duration-300 ${idx <= currentStep ? 'bg-blue-600' : 'bg-slate-200'}`}
-              style={{ width: `${100 / questionBank.length}%`, opacity: idx === currentStep ? 1 : idx < currentStep ? 0.6 : 0.2 }}
+              style={{ width: `${100 / questionBank.length}%`, opacity: idx === currentStep ? 1 : 0.4 }}
             />
           ))}
         </div>
@@ -198,8 +117,7 @@ const Diagnosis: React.FC = () => {
 
       <div className="space-y-10 animate-in slide-in-from-right-4 duration-400">
         <div className="space-y-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold font-display leading-tight text-slate-900">{currentQuestion.text}</h2>
-          <p className="text-slate-400 text-sm">Selecione a opção que melhor descreve sua realidade atual.</p>
+          <h2 className="text-3xl font-bold font-display text-slate-900 leading-tight">{currentQuestion.text}</h2>
         </div>
 
         <div className="space-y-3">
@@ -213,27 +131,19 @@ const Diagnosis: React.FC = () => {
                 : 'border-slate-100 hover:border-blue-200 bg-white text-slate-600'
               }`}
             >
-              <span className="font-semibold text-lg">{option}</span>
-              <ChevronRight className={`w-5 h-5 transition-transform ${answers[currentStep] === option ? 'translate-x-0' : 'opacity-0 group-hover:opacity-100 translate-x-1'}`} />
+              <span className="font-semibold">{option}</span>
+              <ChevronRight className="w-5 h-5 opacity-0 group-hover:opacity-100" />
             </button>
           ))}
         </div>
 
         <div className="flex justify-between items-center pt-8">
-          <button
-            onClick={handleBack}
-            disabled={currentStep === 0}
-            className="flex items-center gap-2 py-3 px-6 bg-white hover:bg-slate-50 disabled:opacity-0 rounded-xl text-slate-500 font-bold tracking-widest uppercase text-[10px] transition-all border border-slate-200"
-          >
+          <button onClick={handleBack} disabled={currentStep === 0} className="flex items-center gap-2 py-3 px-6 bg-white border border-slate-200 rounded-xl text-slate-400 font-bold uppercase text-[10px] disabled:opacity-0 transition-all">
             <ChevronLeft className="w-4 h-4" /> Anterior
           </button>
-          
           {currentStep === questionBank.length - 1 && answers[currentStep] && (
-            <button
-              onClick={submitDiagnosis}
-              className="py-4 px-10 bg-blue-600 hover:bg-blue-700 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-100 text-white uppercase text-xs tracking-widest active:scale-95 animate-in zoom-in"
-            >
-              Finalizar e Analisar <ArrowRight className="w-5 h-5" />
+            <button onClick={submitDiagnosis} className="py-4 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold transition-all shadow-lg uppercase text-xs tracking-widest active:scale-95">
+              Gerar Diagnóstico <ArrowRight className="w-4 h-4 ml-2" />
             </button>
           )}
         </div>
