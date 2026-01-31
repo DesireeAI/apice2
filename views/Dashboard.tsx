@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
             onClick={() => navigateTo('diagnosis')}
             className="flex-1 sm:flex-none px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-slate-200 shadow-sm"
           >
-            <Target className="w-4 h-4 text-blue-600" /> Diagnóstico IA
+            <Target className="w-4 h-4 text-blue-600" /> Diagnóstico
           </button>
           <button 
             onClick={() => navigateTo('planner')}
@@ -132,7 +132,7 @@ const Dashboard: React.FC = () => {
               <div className="bg-white/20 w-fit p-3 rounded-2xl mb-4">
                 <Zap className="w-6 h-6 text-yellow-300 fill-yellow-300" />
               </div>
-              <h3 className="text-2xl font-bold font-display leading-tight">Insight IA</h3>
+              <h3 className="text-2xl font-bold font-display leading-tight">Insight</h3>
               <p className="text-sm text-blue-50 mt-2 font-medium leading-relaxed opacity-90">
                 "{impactAnalysis}"
               </p>

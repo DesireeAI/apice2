@@ -97,7 +97,7 @@ const Diagnosis: React.FC = () => {
         </div>
         <div className="space-y-2">
           <h2 className="text-3xl font-bold font-display text-slate-900">Mapeando sua Performance...</h2>
-          <p className="text-slate-500 font-medium max-w-xs mx-auto">Nossa IA está cruzando seus dados para gerar o Raio-X ideal.</p>
+          <p className="text-slate-500 font-medium max-w-xs mx-auto">Nossa solução está cruzando seus dados para gerar o Raio-X ideal.</p>
         </div>
       </div>
     );
