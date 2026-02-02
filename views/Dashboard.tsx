@@ -3,16 +3,34 @@ import React, { useEffect, useState } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import { PILAR_COLORS, PILAR_ICONS } from '../constants';
 import { LifePilar } from '../types';
-import { CheckCircle2, ChevronRight, Zap, Target, TrendingUp, Sparkles, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Zap, Target, TrendingUp, Sparkles, ArrowRight, X, FileEdit, Save } from 'lucide-react';
 import { useLife } from '../context/LifeContext';
 
 const Dashboard: React.FC = () => {
-  const { scores, impactAnalysis, medActions, scheduledSessions, isFirstTime, navigateTo } = useLife();
+  const { scores, pilarNotes, updatePilarNote, impactAnalysis, medActions, scheduledSessions, isFirstTime, navigateTo } = useLife();
   const [mounted, setMounted] = useState(false);
+  const [selectedPilar, setSelectedPilar] = useState<LifePilar | null>(null);
+  const [tempNote, setTempNote] = useState("");
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const openPilarDetail = (pilar: LifePilar) => {
+    setSelectedPilar(pilar);
+    setTempNote(pilarNotes[pilar] || "");
+  };
+
+  const closePilarDetail = () => {
+    setSelectedPilar(null);
+  };
+
+  const savePilarDetail = () => {
+    if (selectedPilar) {
+      updatePilarNote(selectedPilar, tempNote);
+      closePilarDetail();
+    }
+  };
 
   const radarData = Object.entries(scores).map(([pilar, score]) => ({
     subject: pilar,
@@ -98,9 +116,12 @@ const Dashboard: React.FC = () => {
           {pilaresData.map((p) => (
             <div 
               key={p.name} 
-              onClick={() => navigateTo('planner')}
-              className="bg-white border border-slate-200 rounded-3xl p-6 hover:border-blue-300 transition-all group cursor-pointer shadow-sm hover:shadow-md"
+              onClick={() => openPilarDetail(p.name)}
+              className="bg-white border border-slate-200 rounded-3xl p-6 hover:border-blue-300 transition-all group cursor-pointer shadow-sm hover:shadow-md relative overflow-hidden"
             >
+              <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                 <FileEdit className="w-4 h-4 text-slate-300" />
+              </div>
               <div className="flex justify-between items-start mb-6">
                 <div 
                   className="p-3.5 rounded-2xl transition-all duration-300 shadow-sm border border-slate-100 group-hover:scale-110"
@@ -116,7 +137,9 @@ const Dashboard: React.FC = () => {
               <h3 className="text-lg font-bold font-display text-slate-800">{p.name}</h3>
               <div className="mt-1">
                 <p className="text-sm font-medium text-slate-500">{p.metric}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{p.detail}</p>
+                <p className="text-xs text-slate-400 mt-0.5 line-clamp-1 italic">
+                  {pilarNotes[p.name] || p.detail}
+                </p>
               </div>
               <div className="mt-6 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                 <div 
@@ -202,6 +225,70 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal de Detalhes do Pilar */}
+      {selectedPilar && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-lg bg-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-4">
+                <div 
+                  className="p-3 rounded-2xl shadow-sm border"
+                  style={{ 
+                    color: PILAR_COLORS[selectedPilar], 
+                    backgroundColor: `${PILAR_COLORS[selectedPilar]}10`,
+                    borderColor: `${PILAR_COLORS[selectedPilar]}20`
+                  }}
+                >
+                  {PILAR_ICONS[selectedPilar]}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold font-display text-slate-900">{selectedPilar}</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Informações & Planejamento</p>
+                </div>
+              </div>
+              <button onClick={closePilarDetail} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Notas e Metas Específicas</label>
+                <textarea 
+                  rows={6}
+                  value={tempNote}
+                  onChange={(e) => setTempNote(e.target.value)}
+                  placeholder={`Descreva suas metas para ${selectedPilar}, hábitos que deseja implementar ou observações importantes sobre seu estado atual...`}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                 <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <Sparkles className="w-4 h-4 text-blue-500" />
+                    <span>Estas informações ajudam a refinar seu próximo diagnóstico IA.</span>
+                 </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={closePilarDetail}
+                  className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={savePilarDetail}
+                  className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-3 active:scale-95 transition-all"
+                >
+                  <Save className="w-4 h-4" /> Salvar Notas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

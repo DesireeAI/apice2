@@ -1,11 +1,12 @@
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { LifePilar, TimeBlock, UserProfile, DiagnosisResult } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface LifeState {
   user: UserProfile | null;
   scores: Record<LifePilar, number>;
+  pilarNotes: Record<LifePilar, string>;
   weeklyFocus: string;
   medActions: string[];
   activities: TimeBlock[];
@@ -21,6 +22,7 @@ interface LifeState {
 interface LifeContextType extends LifeState {
   setUser: (user: any) => void;
   updateDiagnosis: (data: DiagnosisResult, rawAnswers?: any[]) => Promise<void>;
+  updatePilarNote: (pilar: LifePilar, note: string) => void;
   addActivity: (activity: Omit<TimeBlock, 'id'>) => Promise<void>;
   removeActivity: (id: string) => Promise<void>;
   toggleSync: (provider: 'google' | 'outlook') => void;
@@ -31,7 +33,6 @@ interface LifeContextType extends LifeState {
 
 const LifeContext = createContext<LifeContextType | undefined>(undefined);
 
-// Helper para converter dados do Supabase (snake_case) para App (camelCase)
 const mapFromDB = (data: any): TimeBlock => ({
   id: String(data.id),
   title: data.title,
@@ -44,6 +45,7 @@ const mapFromDB = (data: any): TimeBlock => ({
   quadrant: data.quadrant || 'do'
 });
 
+// Added missing React import to fix "Cannot find namespace 'React'"
 export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<LifeState>({
     user: null,
@@ -53,6 +55,13 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       [LifePilar.FINANCEIRO]: 0,
       [LifePilar.ESPIRITUAL]: 0,
       [LifePilar.PESSOAL]: 0,
+    },
+    pilarNotes: {
+      [LifePilar.SAUDE]: "",
+      [LifePilar.PROFISSIONAL]: "",
+      [LifePilar.FINANCEIRO]: "",
+      [LifePilar.ESPIRITUAL]: "",
+      [LifePilar.PESSOAL]: "",
     },
     weeklyFocus: "Realize seu diagnóstico inicial.",
     medActions: [],
@@ -125,9 +134,25 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const mappedActivities = acts.map(mapFromDB);
         setState(prev => ({ ...prev, activities: mappedActivities }));
       }
+
+      // Carregar notas do localStorage para persistência simples (como fallback/demo)
+      const savedNotes = localStorage.getItem(`pilar_notes_${userId}`);
+      if (savedNotes) {
+        setState(prev => ({ ...prev, pilarNotes: JSON.parse(savedNotes) }));
+      }
     } catch (err) {
       console.error("Erro ao carregar dados do usuário:", err);
     }
+  };
+
+  const updatePilarNote = (pilar: LifePilar, note: string) => {
+    setState(prev => {
+      const newNotes = { ...prev.pilarNotes, [pilar]: note };
+      if (prev.user) {
+        localStorage.setItem(`pilar_notes_${prev.user.id}`, JSON.stringify(newNotes));
+      }
+      return { ...prev, pilarNotes: newNotes };
+    });
   };
 
   const navigateTo = (tab: string) => {
@@ -250,7 +275,8 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <LifeContext.Provider value={{ 
       ...state, 
       setUser,
-      updateDiagnosis, 
+      updateDiagnosis,
+      updatePilarNote,
       addActivity,
       removeActivity,
       toggleSync, 
