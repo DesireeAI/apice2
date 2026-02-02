@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import { PILAR_COLORS, PILAR_ICONS } from '../constants';
 import { LifePilar } from '../types';
-import { CheckCircle2, ChevronRight, Zap, Target, TrendingUp, Sparkles, ArrowRight, X, FileEdit, Save } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Zap, Target, TrendingUp, Sparkles, ArrowRight, X, FileEdit, Save, Loader2 } from 'lucide-react';
 import { useLife } from '../context/LifeContext';
 
 const Dashboard: React.FC = () => {
@@ -11,6 +11,7 @@ const Dashboard: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   const [selectedPilar, setSelectedPilar] = useState<LifePilar | null>(null);
   const [tempNote, setTempNote] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -23,12 +24,20 @@ const Dashboard: React.FC = () => {
 
   const closePilarDetail = () => {
     setSelectedPilar(null);
+    setIsSaving(false);
   };
 
-  const savePilarDetail = () => {
+  const savePilarDetail = async () => {
     if (selectedPilar) {
-      updatePilarNote(selectedPilar, tempNote);
-      closePilarDetail();
+      setIsSaving(true);
+      try {
+        await updatePilarNote(selectedPilar, tempNote);
+        closePilarDetail();
+      } catch (error) {
+        console.error("Erro ao salvar nota:", error);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -267,7 +276,7 @@ const Dashboard: React.FC = () => {
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
                  <div className="flex items-center gap-3 text-xs text-slate-500">
                     <Sparkles className="w-4 h-4 text-blue-500" />
-                    <span>Estas informações ajudam a refinar seu próximo diagnóstico IA.</span>
+                    <span>Estas informações ajudam a refinar seu próximo diagnóstico.</span>
                  </div>
               </div>
 
@@ -280,9 +289,11 @@ const Dashboard: React.FC = () => {
                 </button>
                 <button 
                   onClick={savePilarDetail}
-                  className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-3 active:scale-95 transition-all"
+                  disabled={isSaving}
+                  className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" /> Salvar Notas
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {isSaving ? 'Salvando...' : 'Salvar Notas'}
                 </button>
               </div>
             </div>

@@ -22,7 +22,7 @@ interface LifeState {
 interface LifeContextType extends LifeState {
   setUser: (user: any) => void;
   updateDiagnosis: (data: DiagnosisResult, rawAnswers?: any[]) => Promise<void>;
-  updatePilarNote: (pilar: LifePilar, note: string) => void;
+  updatePilarNote: (pilar: LifePilar, note: string) => Promise<void>;
   addActivity: (activity: Omit<TimeBlock, 'id'>) => Promise<void>;
   removeActivity: (id: string) => Promise<void>;
   toggleSync: (provider: 'google' | 'outlook') => void;
@@ -45,7 +45,6 @@ const mapFromDB = (data: any): TimeBlock => ({
   quadrant: data.quadrant || 'do'
 });
 
-// Added missing React import to fix "Cannot find namespace 'React'"
 export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<LifeState>({
     user: null,
@@ -106,6 +105,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserData = async (userId: string) => {
     try {
+      // 1. Carregar Diagnóstico
       const { data: diagnosis } = await supabase
         .from('diagnoses')
         .select('*')
@@ -125,6 +125,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }));
       }
 
+      // 2. Carregar Atividades do Planner
       const { data: acts, error: actsError } = await supabase
         .from('planner_blocks')
         .select('*')
@@ -135,24 +136,63 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setState(prev => ({ ...prev, activities: mappedActivities }));
       }
 
-      // Carregar notas do localStorage para persistência simples (como fallback/demo)
-      const savedNotes = localStorage.getItem(`pilar_notes_${userId}`);
-      if (savedNotes) {
-        setState(prev => ({ ...prev, pilarNotes: JSON.parse(savedNotes) }));
+      // 3. Carregar Notas dos Pilares do Supabase
+      const { data: notesData } = await supabase
+        .from('pilar_notes')
+        .select('pilar, note')
+        .eq('user_id', userId);
+
+      if (notesData && notesData.length > 0) {
+        const loadedNotes = { 
+          [LifePilar.SAUDE]: "",
+          [LifePilar.PROFISSIONAL]: "",
+          [LifePilar.FINANCEIRO]: "",
+          [LifePilar.ESPIRITUAL]: "",
+          [LifePilar.PESSOAL]: "",
+        };
+        notesData.forEach((item: any) => {
+          if (item.pilar) loadedNotes[item.pilar as LifePilar] = item.note || "";
+        });
+        setState(prev => ({ ...prev, pilarNotes: loadedNotes }));
+      } else {
+        // Fallback para localStorage apenas se não houver nada no banco
+        const savedNotes = localStorage.getItem(`pilar_notes_${userId}`);
+        if (savedNotes) {
+          setState(prev => ({ ...prev, pilarNotes: JSON.parse(savedNotes) }));
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar dados do usuário:", err);
     }
   };
 
-  const updatePilarNote = (pilar: LifePilar, note: string) => {
-    setState(prev => {
-      const newNotes = { ...prev.pilarNotes, [pilar]: note };
-      if (prev.user) {
-        localStorage.setItem(`pilar_notes_${prev.user.id}`, JSON.stringify(newNotes));
+  const updatePilarNote = async (pilar: LifePilar, note: string) => {
+    // Atualiza localmente primeiro para UI instantânea
+    setState(prev => ({
+      ...prev,
+      pilarNotes: { ...prev.pilarNotes, [pilar]: note }
+    }));
+
+    if (state.user) {
+      // Salva no Supabase (Upsert baseado em user_id e pilar)
+      // Nota: requer que você tenha uma constraint única ou chave composta (user_id, pilar)
+      const { error } = await supabase
+        .from('pilar_notes')
+        .upsert({
+          user_id: state.user.id,
+          pilar: pilar,
+          note: note,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,pilar' });
+
+      if (error) {
+        console.error("Erro ao salvar nota no Supabase:", error);
       }
-      return { ...prev, pilarNotes: newNotes };
-    });
+      
+      // Mantém o backup no localStorage por segurança
+      const currentNotes = { ...state.pilarNotes, [pilar]: note };
+      localStorage.setItem(`pilar_notes_${state.user.id}`, JSON.stringify(currentNotes));
+    }
   };
 
   const navigateTo = (tab: string) => {
@@ -169,6 +209,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateDiagnosis = async (data: DiagnosisResult, rawAnswers?: any[]) => {
     if (!state.user) return;
     
+    // Fix: Access properties medActions and impactAnalysis from the data object as defined in DiagnosisResult
     const { data: diagRecord, error: diagError } = await supabase.from('diagnoses').insert({
       user_id: state.user.id,
       pilar_scores: data.pilarScores,
@@ -227,7 +268,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setState(prev => ({ ...prev, activities: [...prev.activities, newActivity] }));
     } else if (error) {
       console.error("Erro detalhado Supabase:", error);
-      alert("Falha ao salvar. Certifique-se de que as colunas 'day' e 'hour' permitem valores nulos no banco de dados.");
     }
   };
 
@@ -239,7 +279,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setState(prev => ({ ...prev, activities: prev.activities.filter(a => a.id !== id) }));
     } catch (err) {
       console.error("Erro ao remover atividade:", err);
-      alert("Não foi possível excluir a tarefa. Verifique sua conexão.");
     }
   };
 
@@ -255,6 +294,13 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         [LifePilar.FINANCEIRO]: 0,
         [LifePilar.ESPIRITUAL]: 0,
         [LifePilar.PESSOAL]: 0,
+      },
+      pilarNotes: {
+        [LifePilar.SAUDE]: "",
+        [LifePilar.PROFISSIONAL]: "",
+        [LifePilar.FINANCEIRO]: "",
+        [LifePilar.ESPIRITUAL]: "",
+        [LifePilar.PESSOAL]: "",
       },
       activities: []
     }));
