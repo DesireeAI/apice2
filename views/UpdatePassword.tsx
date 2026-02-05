@@ -13,46 +13,48 @@ const UpdatePassword: React.FC = () => {
   const [sessionChecked, setSessionChecked] = useState(false);
 
   // Tenta recuperar a sessão do link de recuperação automaticamente ao carregar a página
-  useEffect(() => {
-    const recoverSession = async () => {
-      if (sessionChecked) return;
+ useEffect(() => {
+  const recoverSession = async () => {
+    if (sessionChecked) return;
+    setSessionChecked(true);
 
-      setSessionChecked(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      console.log('Sessão já ativa');
+      return;
+    }
 
-      // Primeiro verifica se já existe sessão ativa
-      const { data: { session } } = await supabase.auth.getSession();
+    const url = new URL(window.location.href);
+    
+    // Tenta pegar tanto de query string quanto de hash (para cobrir os dois formatos)
+    const params = url.searchParams;
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    
+    const type = params.get('type') || hashParams.get('type');
+    const token_hash = params.get('token_hash') || hashParams.get('token_hash');
 
-      if (session) {
-        console.log('Sessão já ativa');
-        return;
-      }
+    if (type === 'recovery' && token_hash) {
+      console.log('Tentando verificar recovery com token_hash:', token_hash);
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash,
+        type: 'recovery',
+      });
 
-      // Pega os parâmetros da URL (vem no link de recuperação do email)
-      const url = new URL(window.location.href);
-      const type = url.searchParams.get('type');
-      const token_hash = url.searchParams.get('token_hash');
-
-      if (type === 'recovery' && token_hash) {
-        console.log('Tentando recuperar sessão via recovery token...');
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash,
-          type: 'recovery',
-        });
-
-        if (verifyError) {
-          console.error('Erro ao verificar OTP:', verifyError);
-          setError('Link de recuperação inválido ou expirado. Solicite um novo reset de senha.');
-        } else {
-          console.log('Sessão recuperada com sucesso');
-        }
+      if (verifyError) {
+        console.error('Erro no verifyOtp:', verifyError.message);
+        setError(`Falha ao validar o link: ${verifyError.message}. O link pode ter sido usado ou expirado. Solicite um novo.`);
       } else {
-        console.log('Nenhum token de recuperação encontrado na URL');
-        setError('Link de recuperação inválido. Volte ao email e clique novamente.');
+        console.log('Recovery validado com sucesso');
+        // Opcional: recarrega a sessão
+        await supabase.auth.getSession();
       }
-    };
+    } else {
+      setError('Parâmetros de recuperação não encontrados na URL.');
+    }
+  };
 
-    recoverSession();
-  }, [sessionChecked]);
+  recoverSession();
+}, [sessionChecked]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
