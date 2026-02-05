@@ -29,18 +29,20 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Se estiver no modo de atualização de senha, mostra a view independente do estado de login
+  // PRIORIDADE 1: Se estivermos no fluxo de atualização de senha, nada mais importa.
+  // Isso evita que o login automático do Supabase abra o Dashboard por cima.
   if (activeTab === 'update-password') {
     return <UpdatePassword />;
   }
 
-  // Controle de Auth
+  // PRIORIDADE 2: Controle de Auth para usuários não logados
   if (!user) {
     if (activeTab === 'signup') return <SignUp />;
     if (activeTab === 'forgot-password') return <ForgotPassword />;
     return <Login />;
   }
 
+  // PRIORIDADE 3: Roteamento principal do Dashboard
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;

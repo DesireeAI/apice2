@@ -79,7 +79,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Se houver uma sessão, mas o hash da URL indicar recuperação, não redirecionamos para o dashboard ainda
+        // Verificação crítica: Se a URL contém o hash de recuperação
         const isRecovering = window.location.hash.includes('type=recovery');
 
         if (session?.user) {
@@ -92,12 +92,14 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setState(prev => ({ 
             ...prev, 
             user: userPayload, 
+            // Se for recuperação, FORÇA a aba de update-password e ignora dashboard
             activeTab: isRecovering ? 'update-password' : 'dashboard', 
             loading: false 
           }));
           loadUserData(session.user.id);
         } else {
-          setState(prev => ({ ...prev, loading: false }));
+          // Se não tem sessão mas tem hash de recuperação, o Supabase vai processar via onAuthStateChange
+          setState(prev => ({ ...prev, activeTab: isRecovering ? 'update-password' : 'login', loading: false }));
         }
       } catch (err) {
         console.error("Erro na inicialização:", err);
@@ -105,16 +107,11 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Escuta mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth Event:", event); // Para debug se necessário
+      const isRecovering = window.location.hash.includes('type=recovery');
 
       if (event === 'PASSWORD_RECOVERY') {
-        setState(prev => ({ 
-          ...prev, 
-          activeTab: 'update-password', 
-          loading: false 
-        }));
+        setState(prev => ({ ...prev, activeTab: 'update-password', loading: false }));
       } else if (event === 'SIGNED_IN' && session?.user) {
         const userPayload = { 
           id: session.user.id, 
@@ -122,35 +119,21 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: session.user.user_metadata?.full_name 
         };
 
-        setState(prev => {
-          // PROTEÇÃO: Se já estamos na tela de atualização de senha (vimos do PASSWORD_RECOVERY),
-          // não deixamos o evento SIGNED_IN nos mandar para o dashboard.
-          const currentTab = prev.activeTab;
-          const targetTab = currentTab === 'update-password' ? 'update-password' : 'dashboard';
-          
-          return { 
-            ...prev, 
-            user: userPayload, 
-            activeTab: targetTab,
-            loading: false 
-          };
-        });
-        loadUserData(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
         setState(prev => ({ 
           ...prev, 
-          user: null, 
-          activeTab: 'login',
-          loading: false
+          user: userPayload, 
+          // Se estamos no meio de uma recuperação, NÃO mudamos para dashboard
+          activeTab: (isRecovering || prev.activeTab === 'update-password') ? 'update-password' : 'dashboard',
+          loading: false 
         }));
+        loadUserData(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        setState(prev => ({ ...prev, user: null, activeTab: 'login', loading: false }));
       }
     });
 
     initAuth();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const loadUserData = async (userId: string) => {
@@ -214,18 +197,12 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
 
     if (state.user) {
-      const { error } = await supabase
-        .from('pilar_notes')
-        .upsert({
-          user_id: state.user.id,
-          pilar: pilar,
-          note: note,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id,pilar' });
-
-      if (error) {
-        console.error("Erro ao salvar nota no Supabase:", error);
-      }
+      await supabase.from('pilar_notes').upsert({
+        user_id: state.user.id,
+        pilar: pilar,
+        note: note,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,pilar' });
     }
   };
 
@@ -242,7 +219,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateDiagnosis = async (data: DiagnosisResult, rawAnswers?: any[]) => {
     if (!state.user) return;
-    
     const { data: diagRecord, error: diagError } = await supabase.from('diagnoses').insert({
       user_id: state.user.id,
       pilar_scores: data.pilarScores,
@@ -261,7 +237,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pilar: ans.pilar,
         answer_text: ans.resposta
       }));
-
       await supabase.from('diagnosis_answers').insert(answersPayload);
     }
 
@@ -277,8 +252,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addActivity = async (activity: Omit<TimeBlock, 'id'>) => {
     if (!state.user) return;
-    
-    const dbPayload = {
+    const { data, error } = await supabase.from('planner_blocks').insert({
       user_id: state.user.id,
       title: activity.title,
       pilar: activity.pilar,
@@ -288,13 +262,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       day: activity.day,
       hour: activity.hour,
       quadrant: activity.quadrant || 'do'
-    };
-
-    const { data, error } = await supabase
-      .from('planner_blocks')
-      .insert(dbPayload)
-      .select()
-      .single();
+    }).select().single();
 
     if (!error && data) {
       const newActivity = mapFromDB(data);
@@ -304,12 +272,9 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const removeActivity = async (id: string) => {
     if (!state.user) return;
-    try {
-      const { error } = await supabase.from('planner_blocks').delete().eq('id', id);
-      if (error) throw error;
+    const { error } = await supabase.from('planner_blocks').delete().eq('id', id);
+    if (!error) {
       setState(prev => ({ ...prev, activities: prev.activities.filter(a => a.id !== id) }));
-    } catch (err) {
-      console.error("Erro ao remover atividade:", err);
     }
   };
 
