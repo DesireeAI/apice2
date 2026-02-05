@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { LifePilar, TimeBlock, UserProfile, DiagnosisResult } from '../types';
 import { supabase } from '../lib/supabase';
@@ -78,9 +77,18 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        // Verificação crítica: Se a URL contém o hash de recuperação
-        const isRecovering = window.location.hash.includes('type=recovery');
+        const hash = window.location.hash;
+        const isRecovery = hash.includes('type=recovery');
+
+        // Prioridade máxima: se tem hash de recovery, força a aba de update-password
+        if (isRecovery) {
+          setState(prev => ({ 
+            ...prev, 
+            activeTab: 'update-password', 
+            loading: false 
+          }));
+          return; // Não continua para dashboard/login
+        }
 
         if (session?.user) {
           const userPayload = { 
@@ -92,14 +100,12 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setState(prev => ({ 
             ...prev, 
             user: userPayload, 
-            // Se for recuperação, FORÇA a aba de update-password e ignora dashboard
-            activeTab: isRecovering ? 'update-password' : 'dashboard', 
+            activeTab: 'dashboard', 
             loading: false 
           }));
           loadUserData(session.user.id);
         } else {
-          // Se não tem sessão mas tem hash de recuperação, o Supabase vai processar via onAuthStateChange
-          setState(prev => ({ ...prev, activeTab: isRecovering ? 'update-password' : 'login', loading: false }));
+          setState(prev => ({ ...prev, activeTab: 'login', loading: false }));
         }
       } catch (err) {
         console.error("Erro na inicialização:", err);
@@ -108,31 +114,55 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const isRecovering = window.location.hash.includes('type=recovery');
+      // Debug: veja no console a sequência de eventos
+      console.log('Auth event:', event, 'Session:', session, 'Hash:', window.location.hash);
 
       if (event === 'PASSWORD_RECOVERY') {
-        setState(prev => ({ ...prev, activeTab: 'update-password', loading: false }));
-      } else if (event === 'SIGNED_IN' && session?.user) {
+        // Evento específico de recuperação → força update-password
+        setState(prev => ({
+          ...prev,
+          user: session ? { 
+            id: session.user.id, 
+            email: session.user.email!, 
+            full_name: session.user.user_metadata?.full_name 
+          } : prev.user,
+          activeTab: 'update-password',
+          loading: false
+        }));
+      } 
+      else if (event === 'SIGNED_IN' && session?.user) {
         const userPayload = { 
           id: session.user.id, 
           email: session.user.email!,
           full_name: session.user.user_metadata?.full_name 
         };
 
+        const isRecovering = window.location.hash.includes('type=recovery') || 
+                            prev.activeTab === 'update-password';
+
         setState(prev => ({ 
           ...prev, 
           user: userPayload, 
-          // Se estamos no meio de uma recuperação, NÃO mudamos para dashboard
-          activeTab: (isRecovering || prev.activeTab === 'update-password') ? 'update-password' : 'dashboard',
+          activeTab: isRecovering ? 'update-password' : 'dashboard',
           loading: false 
         }));
-        loadUserData(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
-        setState(prev => ({ ...prev, user: null, activeTab: 'login', loading: false }));
+
+        if (!isRecovering) {
+          loadUserData(session.user.id);
+        }
+      } 
+      else if (event === 'SIGNED_OUT') {
+        setState(prev => ({ 
+          ...prev, 
+          user: null, 
+          activeTab: 'login', 
+          loading: false 
+        }));
       }
     });
 
     initAuth();
+
     return () => subscription.unsubscribe();
   }, []);
 
