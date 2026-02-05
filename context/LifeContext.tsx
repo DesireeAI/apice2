@@ -78,6 +78,10 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
+        // Se houver uma sessão, mas o hash da URL indicar recuperação, não redirecionamos para o dashboard ainda
+        const isRecovering = window.location.hash.includes('type=recovery');
+
         if (session?.user) {
           const userPayload = { 
             id: session.user.id, 
@@ -88,7 +92,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setState(prev => ({ 
             ...prev, 
             user: userPayload, 
-            activeTab: 'dashboard', 
+            activeTab: isRecovering ? 'update-password' : 'dashboard', 
             loading: false 
           }));
           loadUserData(session.user.id);
@@ -101,20 +105,44 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    // Listen for auth changes, especially PASSWORD_RECOVERY
+    // Escuta mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth Event:", event); // Para debug se necessário
+
       if (event === 'PASSWORD_RECOVERY') {
-        setState(prev => ({ ...prev, activeTab: 'update-password' }));
+        setState(prev => ({ 
+          ...prev, 
+          activeTab: 'update-password', 
+          loading: false 
+        }));
       } else if (event === 'SIGNED_IN' && session?.user) {
         const userPayload = { 
           id: session.user.id, 
           email: session.user.email!,
           full_name: session.user.user_metadata?.full_name 
         };
-        setState(prev => ({ ...prev, user: userPayload }));
+
+        setState(prev => {
+          // PROTEÇÃO: Se já estamos na tela de atualização de senha (vimos do PASSWORD_RECOVERY),
+          // não deixamos o evento SIGNED_IN nos mandar para o dashboard.
+          const currentTab = prev.activeTab;
+          const targetTab = currentTab === 'update-password' ? 'update-password' : 'dashboard';
+          
+          return { 
+            ...prev, 
+            user: userPayload, 
+            activeTab: targetTab,
+            loading: false 
+          };
+        });
         loadUserData(session.user.id);
       } else if (event === 'SIGNED_OUT') {
-        setState(prev => ({ ...prev, user: null }));
+        setState(prev => ({ 
+          ...prev, 
+          user: null, 
+          activeTab: 'login',
+          loading: false
+        }));
       }
     });
 
@@ -127,7 +155,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserData = async (userId: string) => {
     try {
-      // 1. Carregar Diagnóstico
       const { data: diagnosis } = await supabase
         .from('diagnoses')
         .select('*')
@@ -147,7 +174,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }));
       }
 
-      // 2. Carregar Atividades do Planner
       const { data: acts, error: actsError } = await supabase
         .from('planner_blocks')
         .select('*')
@@ -158,7 +184,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setState(prev => ({ ...prev, activities: mappedActivities }));
       }
 
-      // 3. Carregar Notas dos Pilares do Supabase
       const { data: notesData } = await supabase
         .from('pilar_notes')
         .select('pilar, note')
@@ -176,12 +201,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (item.pilar) loadedNotes[item.pilar as LifePilar] = item.note || "";
         });
         setState(prev => ({ ...prev, pilarNotes: loadedNotes }));
-      } else {
-        // Fallback para localStorage apenas se não houver nada no banco
-        const savedNotes = localStorage.getItem(`pilar_notes_${userId}`);
-        if (savedNotes) {
-          setState(prev => ({ ...prev, pilarNotes: JSON.parse(savedNotes) }));
-        }
       }
     } catch (err) {
       console.error("Erro ao carregar dados do usuário:", err);
@@ -189,7 +208,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updatePilarNote = async (pilar: LifePilar, note: string) => {
-    // Atualiza localmente primeiro para UI instantânea
     setState(prev => ({
       ...prev,
       pilarNotes: { ...prev.pilarNotes, [pilar]: note }
@@ -208,9 +226,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error("Erro ao salvar nota no Supabase:", error);
       }
-      
-      const currentNotes = { ...state.pilarNotes, [pilar]: note };
-      localStorage.setItem(`pilar_notes_${state.user.id}`, JSON.stringify(currentNotes));
     }
   };
 
@@ -284,8 +299,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!error && data) {
       const newActivity = mapFromDB(data);
       setState(prev => ({ ...prev, activities: [...prev.activities, newActivity] }));
-    } else if (error) {
-      console.error("Erro detalhado Supabase:", error);
     }
   };
 
