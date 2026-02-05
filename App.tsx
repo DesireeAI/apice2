@@ -13,6 +13,7 @@ import Eisenhower from './views/Eisenhower';
 import Login from './views/Login';
 import SignUp from './views/SignUp';
 import ForgotPassword from './views/ForgotPassword';
+import UpdatePassword from './views/UpdatePassword';
 import { Search, Bell, User, X, LogOut, Loader2 } from 'lucide-react';
 import { LifeProvider, useLife } from './context/LifeContext';
 
@@ -26,6 +27,11 @@ const AppContent: React.FC = () => {
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
       </div>
     );
+  }
+
+  // Se estiver no modo de atualização de senha, mostra a view independente do estado de login
+  if (activeTab === 'update-password') {
+    return <UpdatePassword />;
   }
 
   // Controle de Auth

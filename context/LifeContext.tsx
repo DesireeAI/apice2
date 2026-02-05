@@ -100,7 +100,29 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setState(prev => ({ ...prev, loading: false }));
       }
     };
+
+    // Listen for auth changes, especially PASSWORD_RECOVERY
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setState(prev => ({ ...prev, activeTab: 'update-password' }));
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        const userPayload = { 
+          id: session.user.id, 
+          email: session.user.email!,
+          full_name: session.user.user_metadata?.full_name 
+        };
+        setState(prev => ({ ...prev, user: userPayload }));
+        loadUserData(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        setState(prev => ({ ...prev, user: null }));
+      }
+    });
+
     initAuth();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadUserData = async (userId: string) => {
@@ -174,8 +196,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
 
     if (state.user) {
-      // Salva no Supabase (Upsert baseado em user_id e pilar)
-      // Nota: requer que você tenha uma constraint única ou chave composta (user_id, pilar)
       const { error } = await supabase
         .from('pilar_notes')
         .upsert({
@@ -189,7 +209,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Erro ao salvar nota no Supabase:", error);
       }
       
-      // Mantém o backup no localStorage por segurança
       const currentNotes = { ...state.pilarNotes, [pilar]: note };
       localStorage.setItem(`pilar_notes_${state.user.id}`, JSON.stringify(currentNotes));
     }
@@ -209,7 +228,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateDiagnosis = async (data: DiagnosisResult, rawAnswers?: any[]) => {
     if (!state.user) return;
     
-    // Fix: Access properties medActions and impactAnalysis from the data object as defined in DiagnosisResult
     const { data: diagRecord, error: diagError } = await supabase.from('diagnoses').insert({
       user_id: state.user.id,
       pilar_scores: data.pilarScores,
