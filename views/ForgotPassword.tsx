@@ -13,11 +13,11 @@ const ForgotPassword: React.FC = () => {
     e.preventDefault();
     setLoading(true);
 
-    // URL completa para onde o link de recuperação deve redirecionar
-    const redirectTo = `${window.location.origin}/#update-password`;
+    // URL base do site, sem fragmento extra - isso evita corromper o hash
+    const redirectTo = window.location.origin;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo, // Isso ajuda o Supabase a redirecionar corretamente
+      redirectTo,
     });
 
     if (error) {
