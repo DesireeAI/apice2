@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLife } from '../context/LifeContext';
 import { Lock, Loader2, CheckCircle, ArrowRight, ShieldAlert } from 'lucide-react';
@@ -34,10 +34,18 @@ const UpdatePassword: React.FC = () => {
     } else {
       setSuccess(true);
       setLoading(false);
-      // Limpa o estado de recuperação após sucesso
+      // Limpa o estado de recuperação após sucesso para permitir navegação
       setIsRecovering(false);
-      setTimeout(() => navigateTo('dashboard'), 2500);
+      
+      // Redirecionamento automático após 4 segundos como fallback
+      const timer = setTimeout(() => navigateTo('dashboard'), 4000);
+      return () => clearTimeout(timer);
     }
+  };
+
+  const handleManualContinue = () => {
+    setIsRecovering(false);
+    navigateTo('dashboard');
   };
 
   return (
@@ -45,19 +53,34 @@ const UpdatePassword: React.FC = () => {
       <div className="w-full max-w-md bg-white rounded-[3rem] p-8 md:p-12 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300">
         <div className="text-center mb-10">
           <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-blue-600 shadow-inner">
-            <ShieldAlert className="w-10 h-10" />
+            {success ? <CheckCircle className="w-10 h-10 text-green-500 animate-in zoom-in duration-500" /> : <ShieldAlert className="w-10 h-10" />}
           </div>
-          <h2 className="text-3xl font-bold font-display text-slate-900 tracking-tight">Segurança de Conta</h2>
-          <p className="text-slate-500 mt-2 text-sm uppercase tracking-widest font-bold">Defina sua nova senha de comando</p>
+          <h2 className="text-3xl font-bold font-display text-slate-900 tracking-tight">
+            {success ? 'Senha Atualizada' : 'Segurança de Conta'}
+          </h2>
+          <p className="text-slate-500 mt-2 text-sm uppercase tracking-widest font-bold">
+            {success ? 'Acesso restaurado com sucesso' : 'Defina sua nova senha de comando'}
+          </p>
         </div>
 
         {success ? (
-          <div className="space-y-6 text-center animate-in zoom-in-95">
-            <div className="bg-green-50 border border-green-200 p-8 rounded-[2.5rem]">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <p className="text-green-700 font-bold text-lg">Acesso Restaurado!</p>
-              <p className="text-green-600 text-sm mt-1">Carregando seu dashboard estratégico...</p>
+          <div className="space-y-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-green-50 border border-green-100 p-8 rounded-[2.5rem]">
+              <p className="text-green-800 font-bold text-lg leading-tight">Sua nova senha mestre já está ativa.</p>
+              <p className="text-green-600 text-xs mt-2">O Centro de Comando está pronto para você.</p>
             </div>
+
+            <button 
+              onClick={handleManualContinue}
+              className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 active:scale-95 group"
+            >
+              Entrar na Minha Conta 
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] animate-pulse">
+              Redirecionando automaticamente em instantes...
+            </p>
           </div>
         ) : (
           <form onSubmit={handleUpdate} className="space-y-6">
