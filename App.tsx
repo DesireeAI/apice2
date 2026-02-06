@@ -14,11 +14,11 @@ import Login from './views/Login';
 import SignUp from './views/SignUp';
 import ForgotPassword from './views/ForgotPassword';
 import UpdatePassword from './views/UpdatePassword';
-import { Search, Bell, User, X, LogOut, Loader2 } from 'lucide-react';
+import { Search, Bell, LogOut, Loader2 } from 'lucide-react';
 import { LifeProvider, useLife } from './context/LifeContext';
 
 const AppContent: React.FC = () => {
-  const { activeTab, navigateTo, user, logout, loading } = useLife();
+  const { activeTab, navigateTo, user, logout, loading, isRecovering } = useLife();
   const [searchQuery, setSearchQuery] = useState('');
 
   if (loading) {
@@ -29,20 +29,20 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // PRIORIDADE 1: Se estivermos no fluxo de atualização de senha, nada mais importa.
-  // Isso evita que o login automático do Supabase abra o Dashboard por cima.
-  if (activeTab === 'update-password') {
+  // 1. PRIORIDADE MÁXIMA: Se estiver em fluxo de recuperação, trava nesta tela
+  // Não importa se o 'user' existe ou qual o 'activeTab', isRecovering manda.
+  if (isRecovering || activeTab === 'update-password') {
     return <UpdatePassword />;
   }
 
-  // PRIORIDADE 2: Controle de Auth para usuários não logados
+  // 2. Auth para usuários não logados
   if (!user) {
     if (activeTab === 'signup') return <SignUp />;
     if (activeTab === 'forgot-password') return <ForgotPassword />;
     return <Login />;
   }
 
-  // PRIORIDADE 3: Roteamento principal do Dashboard
+  // 3. Roteamento do Dashboard logado
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
@@ -75,52 +75,34 @@ const AppContent: React.FC = () => {
             />
           </div>
 
-          <div className="lg:hidden block">
-             <h1 className="text-xl font-bold font-display tracking-tight text-slate-800">APICE<span className="text-blue-600">4</span></h1>
-          </div>
-          
-          <div className="flex items-center gap-3 lg:gap-5">
-            <button className="p-2.5 bg-slate-50 border border-slate-200 text-slate-500 hover:text-blue-600 rounded-xl transition-all relative">
+          <div className="flex items-center gap-3">
+            <button className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all relative">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
             </button>
-            
-            <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
-            
-            <div className="flex items-center gap-3 pl-2 group">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-slate-800 uppercase tracking-tighter">{user.full_name || user.email.split('@')[0]}</p>
-                <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Master VIP</p>
-              </div>
-              <button 
-                onClick={logout}
-                title="Sair"
-                className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
+            <button 
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all text-xs font-bold uppercase tracking-widest"
+            >
+              <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Sair</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full">
+        <div className="p-6 lg:p-10 max-w-7xl mx-auto w-full">
           {renderContent()}
         </div>
-
-        <footer className="py-8 text-center border-t border-slate-100 bg-white/50">
-          <p className="text-[10px] text-slate-400 uppercase tracking-[0.4em] font-bold">
-            APICE4 • INTEGRAL LIFE SYSTEM • 2024
-          </p>
-        </footer>
       </main>
     </div>
   );
 };
 
-const App: React.FC = () => (
-  <LifeProvider>
-    <AppContent />
-  </LifeProvider>
-);
+const App: React.FC = () => {
+  return (
+    <LifeProvider>
+      <AppContent />
+    </LifeProvider>
+  );
+};
 
 export default App;

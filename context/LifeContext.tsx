@@ -17,7 +17,7 @@ interface LifeState {
   activeTab: string;
   isFirstTime: boolean;
   loading: boolean;
-  isRecovering: boolean; // Novo estado para travar o fluxo
+  isRecovering: boolean; // Estado que bloqueia o dashboard
 }
 
 interface LifeContextType extends LifeState {
@@ -82,9 +82,9 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Verificação robusta do hash de recuperação
+        // Verifica se o hash da URL contém sinais de recuperação (fallback para links diretos)
         const hash = window.location.hash;
-        const isRec = hash.includes('type=recovery') || hash.includes('access_token=');
+        const isRecHash = hash.includes('type=recovery') || hash.includes('access_token=');
 
         if (session?.user) {
           const userPayload = { 
@@ -96,29 +96,33 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setState(prev => ({ 
             ...prev, 
             user: userPayload, 
-            isRecovering: isRec,
-            activeTab: isRec ? 'update-password' : 'dashboard', 
+            isRecovering: prev.isRecovering || isRecHash,
+            activeTab: (prev.isRecovering || isRecHash) ? 'update-password' : 'dashboard', 
             loading: false 
           }));
           loadUserData(session.user.id);
         } else {
           setState(prev => ({ 
             ...prev, 
-            isRecovering: isRec,
-            activeTab: isRec ? 'update-password' : 'login', 
+            isRecovering: isRecHash,
+            activeTab: isRecHash ? 'update-password' : 'login', 
             loading: false 
           }));
         }
       } catch (err) {
-        console.error("Erro na inicialização:", err);
         setState(prev => ({ ...prev, loading: false }));
       }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Detecta evento específico do Supabase para recuperação
       if (event === 'PASSWORD_RECOVERY') {
-        setState(prev => ({ ...prev, activeTab: 'update-password', isRecovering: true, loading: false }));
+        // Bloqueio imediato ao detectar evento de recuperação
+        setState(prev => ({ 
+          ...prev, 
+          isRecovering: true, 
+          activeTab: 'update-password', 
+          loading: false 
+        }));
       } else if (event === 'SIGNED_IN' && session?.user) {
         const userPayload = { 
           id: session.user.id, 
@@ -126,17 +130,13 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: session.user.user_metadata?.full_name 
         };
 
-        setState(prev => {
-          // Se já estávamos em recuperação ou detectamos o hash, forçamos o update-password
-          const shouldForceUpdate = prev.isRecovering || window.location.hash.includes('type=recovery');
-          return { 
-            ...prev, 
-            user: userPayload, 
-            isRecovering: shouldForceUpdate,
-            activeTab: shouldForceUpdate ? 'update-password' : 'dashboard',
-            loading: false 
-          };
-        });
+        setState(prev => ({ 
+          ...prev, 
+          user: userPayload, 
+          // Se já estávamos em modo de recuperação, ignoramos o redirecionamento para o dashboard
+          activeTab: prev.isRecovering ? 'update-password' : 'dashboard',
+          loading: false 
+        }));
         loadUserData(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setState(prev => ({ ...prev, user: null, activeTab: 'login', isRecovering: false, loading: false }));
@@ -168,36 +168,17 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }));
       }
 
-      const { data: acts, error: actsError } = await supabase
+      const { data: acts } = await supabase
         .from('planner_blocks')
         .select('*')
         .eq('user_id', userId);
       
-      if (!actsError && acts) {
+      if (acts) {
         const mappedActivities = acts.map(mapFromDB);
         setState(prev => ({ ...prev, activities: mappedActivities }));
       }
-
-      const { data: notesData } = await supabase
-        .from('pilar_notes')
-        .select('pilar, note')
-        .eq('user_id', userId);
-
-      if (notesData && notesData.length > 0) {
-        const loadedNotes = { 
-          [LifePilar.SAUDE]: "",
-          [LifePilar.PROFISSIONAL]: "",
-          [LifePilar.FINANCEIRO]: "",
-          [LifePilar.ESPIRITUAL]: "",
-          [LifePilar.PESSOAL]: "",
-        };
-        notesData.forEach((item: any) => {
-          if (item.pilar) loadedNotes[item.pilar as LifePilar] = item.note || "";
-        });
-        setState(prev => ({ ...prev, pilarNotes: loadedNotes }));
-      }
     } catch (err) {
-      console.error("Erro ao carregar dados do usuário:", err);
+      console.error("Erro ao carregar dados:", err);
     }
   };
 
@@ -218,12 +199,9 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const navigateTo = (tab: string) => {
-    // Impede navegação se estiver em fluxo de recuperação
+    // Impede navegação se estiver em recuperação obrigatória
     if (state.isRecovering && tab !== 'update-password') return;
-    
     setState(prev => ({ ...prev, activeTab: tab }));
-    const main = document.querySelector('main');
-    if (main) main.scrollTop = 0;
   };
 
   const setUser = (user: any) => {
@@ -246,17 +224,6 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).select().single();
 
     if (diagError) throw diagError;
-
-    if (rawAnswers && diagRecord) {
-      const answersPayload = rawAnswers.map(ans => ({
-        user_id: state.user!.id,
-        diagnosis_id: diagRecord.id,
-        question_text: ans.pergunta,
-        pilar: ans.pilar,
-        answer_text: ans.resposta
-      }));
-      await supabase.from('diagnosis_answers').insert(answersPayload);
-    }
 
     setState(prev => ({
       ...prev,
@@ -303,21 +270,7 @@ export const LifeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user: null, 
       activeTab: 'login', 
       isRecovering: false,
-      scores: {
-        [LifePilar.SAUDE]: 0,
-        [LifePilar.PROFISSIONAL]: 0,
-        [LifePilar.FINANCEIRO]: 0,
-        [LifePilar.ESPIRITUAL]: 0,
-        [LifePilar.PESSOAL]: 0,
-      },
-      pilarNotes: {
-        [LifePilar.SAUDE]: "",
-        [LifePilar.PROFISSIONAL]: "",
-        [LifePilar.FINANCEIRO]: "",
-        [LifePilar.ESPIRITUAL]: "",
-        [LifePilar.PESSOAL]: "",
-      },
-      activities: []
+      loading: false
     }));
   };
 
